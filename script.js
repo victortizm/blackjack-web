@@ -173,11 +173,12 @@ function startRound() {
     }, delay + 200);
 }
 
+// --- LÓGICA DE TURNOS ---
 function checkBlackjackAndTurns() {
     let foundActive = false;
     for(let i = state.currentPlayerIndex; i < state.players.length; i++) {
         let p = state.players[i];
-        if (p.balance < 0 || !p.activo) continue;
+        if (!p.activo) continue;
         
         if (calculateScore(p.hand) === 21) {
             p.activo = false;
@@ -193,24 +194,54 @@ function checkBlackjackAndTurns() {
     } else {
         renderPlayerUI();
         updateBalanceUI();
-        elActionControls.classList.remove('hidden');
         elBetControls.classList.add('hidden');
-        setupKeyboardNav();
+
+        let currentPlayer = state.players[state.currentPlayerIndex];
+        
+        // SI ES UN BOT: Ocultar botones y pensar automáticamente
+        if (currentPlayer.isBot) {
+            elActionControls.classList.add('hidden');
+            setTimeout(botTurn, 1000); // Espera 1 segundo antes de actuar
+        } 
+        // SI ES UN HUMANO: Mostrar botones y esperar input
+        else {
+            elActionControls.classList.remove('hidden');
+            setupKeyboardNav();
+        }
+    }
+}
+
+// --- INTELIGENCIA DE LOS BOTS ---
+function botTurn() {
+    let p = state.players[state.currentPlayerIndex];
+    let score = calculateScore(p.hand);
+
+    // Regla simple: Pedir carta si tiene menos de 17
+    if (score < 17) {
+        playerHit();
+    } else {
+        playerStand();
     }
 }
 
 function playerHit() {
     let p = state.players[state.currentPlayerIndex];
-    p.hand.push(state.deck.pop());
+    let c = state.deck.pop();
+    p.hand.push(c);
     
     let handBox = document.getElementById(`hand-p${state.currentPlayerIndex}`);
-    if(handBox) handBox.appendChild(createCardElement(p.hand[p.hand.length - 1]));
+    if(handBox) handBox.appendChild(createCardElement(c));
     
     setTimeout(() => {
         renderPlayerUI();
-        if (calculateScore(p.hand) >= 21) {
+        let score = calculateScore(p.hand);
+        
+        if (score >= 21) {
             p.activo = false;
             nextPlayer();
+        } else if (p.isBot) {
+            // Si es un bot y sigue teniendo menos de 21, vuelve a decidir
+            setTimeout(botTurn, 1000);
         }
     }, 400);
 }
@@ -501,17 +532,20 @@ elBtnStart.addEventListener('click', () => {
             let name = input.value.trim() || `Jugador ${i+1}`;
             let bal = name.toLowerCase() === 'tuxtter' ? SALDO_TUXTTER : SALDO_INICIAL;
             if (name.toLowerCase() === 'tuxtter') alert(`¡Modo TUXTTER activado para ${name}!`);
-            state.players.push({ name: name, balance: bal, hand: [], bet: 100, activo: true });
+            // En modo local nadie es bot
+            state.players.push({ name: name, balance: bal, hand: [], bet: 100, activo: true, isBot: false });
         });
     } else {
         let mainName = document.getElementById('input-main-name').value.trim() || "Tú";
         let bal = mainName.toLowerCase() === 'tuxtter' ? SALDO_TUXTTER : SALDO_INICIAL;
         if (mainName.toLowerCase() === 'tuxtter') alert("¡Modo TUXTTER activado! $1,000,000 iniciales.");
         
-        state.players.push({ name: mainName, balance: bal, hand: [], bet: 100, activo: true });
+        // El jugador principal no es bot
+        state.players.push({ name: mainName, balance: bal, hand: [], bet: 100, activo: true, isBot: false });
 
+        // Los siguientes jugadores SÍ son bots
         for (let i = 1; i < count; i++) {
-            state.players.push({ name: BOT_NAMES[i-1], balance: SALDO_INICIAL, hand: [], bet: 100, activo: true });
+            state.players.push({ name: BOT_NAMES[i-1], balance: SALDO_INICIAL, hand: [], bet: 100, activo: true, isBot: true });
         }
     }
     
