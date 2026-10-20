@@ -1,278 +1,566 @@
-// --------------------------------------------------------
-// 1. FONDO MATRIX (Lluvia de 1s y 0s)
-// --------------------------------------------------------
-const canvas = document.getElementById('matrixCanvas');
-const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-const chars = "01";
-const fontSize = 16;
-const columns = canvas.width / fontSize;
-const drops = [];
-for (let x = 0; x < columns; x++) drops[x] = 1;
+const SUITS = ['♠', '♥', '♦', '♣'];
+const VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const SALDO_INICIAL = 500;
+const SALDO_TUXTTER = 100000000;
+const BOT_NAMES = ['Gemini', 'ChatGPT', 'Claude'];
 
-function drawMatrix() {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#00ffff";
-    ctx.font = fontSize + "px monospace";
-    for (let i = 0; i < drops.length; i++) {
-        const text = chars.charAt(Math.floor(Math.random() * chars.length));
-        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
-        drops[i]++;
-    }
-}
-setInterval(drawMatrix, 50);
+let state = {
+    players: [],
+    dealer: { hand: [] },
+    currentPlayerIndex: 0,
+    deck: [],
+    phase: 'INIT',
+    stats: { wins: 0, losses: 0, pushes: 0, blackjacks: 0 },
+    focusIndex: 0,
+    activeButtons: []
+};
 
-// --------------------------------------------------------
-// 2. HACKER TYPER
-// --------------------------------------------------------
-const terminal = document.getElementById('terminal-output');
-const win1 = document.getElementById('mini-window-1');
-const win2 = document.getElementById('mini-window-2');
-const win3 = document.getElementById('mini-window-3');
-const asciiDisplay = document.getElementById('ascii-art-display');
-const mathDisplay = document.getElementById('math-display');
-const hackProgress = document.getElementById('hack-progress');
-const hackedScreen = document.getElementById('hacked-screen');
-const gameContainer = document.getElementById('game-container');
-const metalslugContainer = document.getElementById('metalslug-container');
-const metalslugFrame = document.getElementById('metalslug-frame');
+let selectedMode = 'bots';
+let currentBet = 100;
 
-let keysPressed = 0;
-let codeIndex = 0;
-const maxKeys = 100; // Bajar un poco para que empiece el juego más rápido
+// DOM
+const elModal = document.getElementById('name-modal');
+const elStepMode = document.getElementById('step-mode');
+const elStepConfig = document.getElementById('step-config');
+const elConfigTitle = document.getElementById('config-title');
+const elLblCount = document.getElementById('lbl-count');
+const elInputPlayers = document.getElementById('input-players');
+const elNamesContainer = document.getElementById('names-container');
+const elBtnStart = document.getElementById('btn-start');
+const elPlayersContainer = document.getElementById('players-container');
+const elDealerHand = document.getElementById('dealer-hand');
+const elDealerScore = document.getElementById('dealer-score');
+const elPlayerSeatsList = document.getElementById('player-seats-list');
+const elBalanceDisplay = document.getElementById('balance-display');
+const elBetControls = document.getElementById('bet-controls');
+const elActionControls = document.getElementById('action-controls');
+const elCurrentBet = document.getElementById('current-bet');
+const elBtnNextRound = document.getElementById('btn-next-round');
+const elResultMessage = document.getElementById('result-message');
 
-const fakeCode = `#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <math.h>\n\n/* Kernel exploit */\ntypedef struct { char ip[16]; int port; } Target;\n\nvoid bypass_firewall(Target *t) {\n    printf("[*] Escaneando %s...\\n", t->ip);\n    for(int i=0; i<65535; i++) {\n        if(i == 443) printf("[+] Puerto abierto\\n");\n    }\n}\n\nint main() {\n    while(1) {\n        printf("Inyectando payload...\\n");\n        sleep(1);\n    }\n    return 0;\n}\n\n/* Derivadas e integrales */\ndouble f(double x) { return x*x + sin(x); }\ndouble df(double x) { return 2*x + cos(x); }\ndouble integrate(double a, double b) { return (b*b*b - a*a*a)/3.0; }\n\n// BOOM...\n`;
+// Botones de Apuesta
+const btnMinus1 = document.getElementById('btn-bet-minus1');
+const btnMinus025 = document.getElementById('btn-bet-minus');
+const btnPlus025 = document.getElementById('btn-bet-plus');
+const btnPlus1 = document.getElementById('btn-bet-plus1');
+const btnMax = document.getElementById('btn-bet-max');
 
-// ASCII Art: Corazón y Cohete (en bucle)
-const asciiArts = [
-`  <3 <3 <3
- <3       <3
-  <3     <3
-    <3 <3
-      <3`,
-`    /\\
-   /  \\
-  |    |
-  |    |
- /|    |\\
-/_|____|_\\`
-];
-
-const mathFormulas = [
-`∫ e^(-x^2) dx = √π/2`,
-`d/dx [sin(x)cos(x)] = cos(2x)`,
-`∇ × E = -∂B/∂t`,
-`∑ (1/n^2) = π^2/6`,
-`∮ F · dr = ∬ (∇ × F) · dS`,
-`lim (1 + 1/x)^x = e`,
-`∂²u/∂t² = c² ∇²u`
-];
-
-function typeCode(e) {
-    if (!gameContainer.classList.contains('hidden') || 
-        !hackedScreen.classList.contains('hidden') || 
-        !metalslugContainer.classList.contains('hidden')) return;
-    
-    if (e.key === "Escape") { location.reload(); return; }
-    if (e.key.length !== 1 && e.key !== "Enter") return;
-
-    keysPressed++;
-
-    for (let i = 0; i < 3; i++) {
-        if (codeIndex >= fakeCode.length) codeIndex = 0;
-        terminal.textContent += fakeCode[codeIndex];
-        codeIndex++;
-    }
-
-    if (keysPressed === 15) win1.classList.remove('hidden');
-    if (keysPressed === 30) win2.classList.remove('hidden');
-    if (keysPressed === 45) win3.classList.remove('hidden');
-
-    if (keysPressed > 15) {
-        const artIndex = Math.floor((keysPressed - 15) / 10) % asciiArts.length;
-        asciiDisplay.textContent = asciiArts[artIndex];
-    }
-
-    if (keysPressed > 30) {
-        let percent = Math.min(((keysPressed - 30) / (maxKeys - 30)) * 100, 100);
-        hackProgress.style.width = percent + "%";
-    }
-
-    if (keysPressed > 45) {
-        const mathIndex = Math.floor((keysPressed - 45) / 8) % mathFormulas.length;
-        mathDisplay.textContent = mathFormulas[mathIndex];
-    }
-
-    if (keysPressed >= maxKeys) {
-        startGeometryDash();
-    }
+// LÓGICA DE CARTAS
+function createDeck() {
+    let deck = [];
+    for (let suit of SUITS) for (let value of VALUES) deck.push({ suit, value });
+    return deck.sort(() => Math.random() - 0.5);
 }
 
-document.addEventListener('keydown', typeCode);
+function getCardValue(card) {
+    if (card.value === 'A') return 11;
+    if (['J', 'Q', 'K'].includes(card.value)) return 10;
+    return parseInt(card.value);
+}
 
-// --------------------------------------------------------
-// 3. GEOMETRY DASH CON DRAGÓN
-// --------------------------------------------------------
-const dashCanvas = document.getElementById('dashCanvas');
-const dCtx = dashCanvas.getContext('2d');
-const hackedTitle = document.querySelector('#hacked-screen h1');
+function calculateScore(hand) {
+    let score = 0, aces = 0;
+    for (let card of hand) {
+        score += getCardValue(card);
+        if (card.value === 'A') aces++;
+    }
+    while (score > 21 && aces > 0) { score -= 10; aces--; }
+    return score;
+}
 
-let player, obstacles, dashScore, dashSpeed, dashActive, dragonActive, dashLoop;
-let autoTypeInterval;
+function createCardElement(card, isHidden = false) {
+    const cardDiv = document.createElement('div');
+    cardDiv.classList.add('card', 'dealing');
+    if (isHidden) {
+        cardDiv.classList.add('hidden-card');
+    } else {
+        const isRed = card.suit === '♥' || card.suit === '♦';
+        cardDiv.classList.add(isRed ? 'red' : 'black');
+        cardDiv.innerHTML = `
+            <div class="corner top"><span>${card.value}</span><span>${card.suit}</span></div>
+            <div class="center">${card.suit}</div>
+            <div class="corner bottom"><span>${card.value}</span><span>${card.suit}</span></div>
+        `;
+    }
+    setTimeout(() => cardDiv.classList.remove('dealing'), 400);
+    return cardDiv;
+}
 
-// Escribir código automáticamente en el fondo mientras se juega
-function startAutoType() {
-    autoTypeInterval = setInterval(() => {
-        for (let i = 0; i < 3; i++) {
-            if (codeIndex >= fakeCode.length) codeIndex = 0;
-            terminal.textContent += fakeCode[codeIndex];
-            codeIndex++;
+// RENDERIZADO
+function renderPlayerUI() {
+    elPlayersContainer.innerHTML = '';
+    elPlayerSeatsList.innerHTML = '';
+
+    state.players.forEach((p, i) => {
+        let box = document.createElement('div');
+        box.className = `player-box ${i === state.currentPlayerIndex && state.phase === 'PLAYING' ? 'active-turn' : ''}`;
+        
+        let chipHTML = '';
+        if (p.bet > 0) {
+            chipHTML = `<div class="chip-container"><div class="chip" style="animation: dropChip 0.3s ease-out;">$${p.bet/100}</div></div>`;
         }
-        if (terminal.textContent.length > 2000) {
-            terminal.textContent = terminal.textContent.slice(500);
-        }
-    }, 50);
+
+        box.innerHTML = `
+            <h3>${p.name} <span class="score-badge">${calculateScore(p.hand) || 0}</span></h3>
+            <div class="hand" id="hand-p${i}"></div>
+            ${chipHTML}
+        `;
+        elPlayersContainer.appendChild(box);
+
+        let handContainer = box.querySelector('.hand');
+        p.hand.forEach(c => handContainer.appendChild(createCardElement(c)));
+
+        let seat = document.createElement('div');
+        seat.className = `seat ${i === state.currentPlayerIndex && state.phase === 'PLAYING' ? 'active' : ''}`;
+        let isTuxtter = p.name.toLowerCase() === 'tuxtter';
+        let saldoStr = isTuxtter ? '$1.0M' : `$${Math.floor(p.balance/100)}.${(p.balance%100).toString().padStart(2,'0')}`;
+        seat.innerText = `● ${p.name} (${saldoStr})`;
+        elPlayerSeatsList.appendChild(seat);
+    });
 }
 
-function startGeometryDash() {
-    win1.classList.add('hidden');
-    win2.classList.add('hidden');
-    win3.classList.add('hidden');
-    gameContainer.classList.remove('hidden');
-    
-    startAutoType(); // Empieza a escribir en el fondo
-    
-    player = { x: 50, y: 300, size: 30, vy: 0, gravity: 0.8, jumpForce: -13, grounded: true };
-    obstacles = [];
-    dashScore = 0;
-    dashSpeed = 8;
-    dashActive = true;
-    dragonActive = false;
+function updateBalanceUI() {
+    let p = state.players[state.currentPlayerIndex] || state.players[0];
+    if (!p) return;
+    let dollars = Math.floor(p.balance / 100);
+    let remainder = p.balance % 100;
+    elBalanceDisplay.innerText = `$${dollars}.${remainder.toString().padStart(2, '0')}`;
+}
 
-    if (dashLoop) cancelAnimationFrame(dashLoop);
-    updateDash();
+// FLUJO DEL JUEGO
+function startRound() {
+    state.deck = createDeck();
+    state.dealer.hand = [];
+    elDealerHand.innerHTML = '';
+    elDealerScore.innerText = '?';
+    elResultMessage.className = 'hidden';
+    elBtnNextRound.classList.add('hidden');
+    
+    state.players.forEach(p => { p.hand = []; });
+    renderPlayerUI();
+    
+    let dealSequence = [];
+    for(let i=0; i<2; i++) {
+        state.players.forEach((p, idx) => dealSequence.push({type: 'player', idx}));
+        dealSequence.push({type: 'dealer'});
+    }
+
+    let delay = 0;
+    dealSequence.forEach(action => {
+        setTimeout(() => {
+            if (action.type === 'player') {
+                let p = state.players[action.idx];
+                if (p.activo) {
+                    let c = state.deck.pop();
+                    p.hand.push(c);
+                    let handBox = document.getElementById(`hand-p${action.idx}`);
+                    if(handBox) handBox.appendChild(createCardElement(c));
+                }
+            } else {
+                let c = state.deck.pop();
+                state.dealer.hand.push(c);
+                elDealerHand.appendChild(createCardElement(c, state.dealer.hand.length === 2));
+            }
+        }, delay);
+        delay += 300;
+    });
+
+    setTimeout(() => {
+        renderPlayerUI();
+        state.phase = 'PLAYING';
+        state.currentPlayerIndex = 0;
+        checkBlackjackAndTurns();
+    }, delay + 200);
+}
+
+function checkBlackjackAndTurns() {
+    let foundActive = false;
+    for(let i = state.currentPlayerIndex; i < state.players.length; i++) {
+        let p = state.players[i];
+        if (p.balance < 0 || !p.activo) continue;
+        
+        if (calculateScore(p.hand) === 21) {
+            p.activo = false;
+            continue;
+        }
+        state.currentPlayerIndex = i;
+        foundActive = true;
+        break;
+    }
+
+    if (!foundActive) {
+        dealerTurn();
+    } else {
+        renderPlayerUI();
+        updateBalanceUI();
+        elActionControls.classList.remove('hidden');
+        elBetControls.classList.add('hidden');
+        setupKeyboardNav();
+    }
+}
+
+function playerHit() {
+    let p = state.players[state.currentPlayerIndex];
+    p.hand.push(state.deck.pop());
+    
+    let handBox = document.getElementById(`hand-p${state.currentPlayerIndex}`);
+    if(handBox) handBox.appendChild(createCardElement(p.hand[p.hand.length - 1]));
+    
+    setTimeout(() => {
+        renderPlayerUI();
+        if (calculateScore(p.hand) >= 21) {
+            p.activo = false;
+            nextPlayer();
+        }
+    }, 400);
+}
+
+function playerStand() {
+    state.players[state.currentPlayerIndex].activo = false;
+    nextPlayer();
+}
+
+function playerDouble() {
+    let p = state.players[state.currentPlayerIndex];
+    if (p.balance < p.bet) { alert("No tienes saldo para doblar."); return; }
+    p.balance -= p.bet;
+    p.bet *= 2;
+    updateBalanceUI();
+
+    p.hand.push(state.deck.pop());
+    let handBox = document.getElementById(`hand-p${state.currentPlayerIndex}`);
+    if(handBox) handBox.appendChild(createCardElement(p.hand[p.hand.length - 1]));
+    
+    setTimeout(() => {
+        renderPlayerUI();
+        p.activo = false;
+        nextPlayer();
+    }, 400);
+}
+
+function nextPlayer() {
+    elActionControls.classList.add('hidden');
+    state.currentPlayerIndex++;
+    checkBlackjackAndTurns();
+}
+
+function dealerTurn() {
+    state.phase = 'DEALER';
+    elActionControls.classList.add('hidden');
+    
+    elDealerHand.innerHTML = '';
+    state.dealer.hand.forEach(c => elDealerHand.appendChild(createCardElement(c, false)));
+    
+    let playDealer = () => {
+        let score = calculateScore(state.dealer.hand);
+        if (score < 17) {
+            state.dealer.hand.push(state.deck.pop());
+            elDealerHand.appendChild(createCardElement(state.dealer.hand[state.dealer.hand.length-1]));
+            setTimeout(playDealer, 600);
+        } else {
+            resolveRound();
+        }
+    };
+    setTimeout(playDealer, 600);
+}
+
+// RESOLUCIÓN Y MENSAJES
+function resolveRound() {
+    state.phase = 'RESOLVE';
+    let dScore = calculateScore(state.dealer.hand);
+    elDealerScore.innerText = dScore;
+    
+    let roundWins = 0;
+    let roundLosses = 0;
+    let roundPushes = 0;
+    let totalActive = 0;
+    let singlePlayerResult = "";
+
+    state.players.forEach((p) => {
+        if(!p.activo && p.hand.length === 0) return;
+        totalActive++;
+        
+        let pScore = calculateScore(p.hand);
+        let isPlayerBJ = p.hand.length === 2 && pScore === 21;
+        let isDealerBJ = state.dealer.hand.length === 2 && dScore === 21;
+        
+        let payout = 0;
+        let betAmount = p.bet;
+        p.bet = 0;
+
+        if (pScore > 21) {
+            state.stats.losses++; roundLosses++;
+            if (totalActive === 1) singlePlayerResult = "PIERDE";
+        } else if (isPlayerBJ && !isDealerBJ) {
+            payout = Math.floor(betAmount * 2.5);
+            state.stats.blackjacks++; state.stats.wins++; roundWins++;
+            if (totalActive === 1) singlePlayerResult = "¡BLACKJACK!";
+        } else if (isDealerBJ && !isPlayerBJ) {
+            state.stats.losses++; roundLosses++;
+            if (totalActive === 1) singlePlayerResult = "PIERDE";
+        } else if (dScore > 21 || pScore > dScore) {
+            payout = betAmount * 2;
+            state.stats.wins++; roundWins++;
+            if (totalActive === 1) singlePlayerResult = "GANA";
+        } else if (pScore === dScore) {
+            payout = betAmount;
+            state.stats.pushes++; roundPushes++;
+            if (totalActive === 1) singlePlayerResult = "EMPATA";
+        } else {
+            state.stats.losses++; roundLosses++;
+            if (totalActive === 1) singlePlayerResult = "PIERDE";
+        }
+        p.balance += payout;
+    });
+
+    renderPlayerUI();
+    updateStatsUI();
+    updateBalanceUI();
+
+    // MENSAJE INTELIGENTE
+    elResultMessage.className = '';
+    
+    if (totalActive === 1) {
+        elResultMessage.innerText = `${state.players[0].name} ${singlePlayerResult}`;
+        if (singlePlayerResult.includes("GANA") || singlePlayerResult.includes("BLACKJACK")) {
+            elResultMessage.classList.add('anim-win');
+        } else if (singlePlayerResult === "PIERDE") {
+            elResultMessage.classList.add('anim-lose');
+        } else {
+            elResultMessage.classList.add('anim-push');
+        }
+    } else {
+        if (roundWins === totalActive) {
+            elResultMessage.innerText = "¡TODOS GANARON!";
+            elResultMessage.classList.add('anim-win');
+        } else if (roundLosses === totalActive) {
+            elResultMessage.innerText = "LA CASA GANA";
+            elResultMessage.classList.add('anim-lose');
+        } else if (roundPushes === totalActive) {
+            elResultMessage.innerText = "EMPATE GENERAL";
+            elResultMessage.classList.add('anim-push');
+        } else {
+            elResultMessage.innerText = "RESULTADOS MIXTOS";
+            elResultMessage.classList.add('anim-push');
+        }
+    }
+
+    elBtnNextRound.classList.remove('hidden');
+    setupKeyboardNav();
+}
+
+function updateStatsUI() {
+    document.getElementById('stat-wins').innerText = state.stats.wins;
+    document.getElementById('stat-losses').innerText = state.stats.losses;
+    document.getElementById('stat-pushes').innerText = state.stats.pushes;
+    document.getElementById('stat-blackjacks').innerText = state.stats.blackjacks;
+}
+
+// CONTROL DE APUESTAS
+function updateBetUI() {
+    let p = state.players[0];
+    let maxBet = Math.floor(p.balance / 25) * 25;
+    
+    elCurrentBet.value = (currentBet / 100).toFixed(2);
+
+    btnMinus025.disabled = currentBet <= 25;
+    btnMinus1.disabled = currentBet - 100 < 25;
+    btnPlus025.disabled = currentBet + 25 > maxBet;
+    btnPlus1.disabled = currentBet + 100 > maxBet;
+    btnMax.disabled = currentBet >= maxBet;
+}
+
+function changeBet(amount) {
+    let p = state.players[0];
+    let maxBet = Math.floor(p.balance / 25) * 25;
+    let newBet = currentBet + amount;
+    
+    if (newBet < 25) newBet = 25;
+    if (newBet > maxBet) newBet = maxBet;
+    
+    currentBet = newBet;
+    updateBetUI();
+}
+
+// INPUT MANUAL
+elCurrentBet.addEventListener('change', (e) => {
+    let val = parseFloat(e.target.value);
+    let p = state.players[0];
+    let maxBet = Math.floor(p.balance / 25) / 100;
+
+    if (isNaN(val)) val = 1.00;
+    if (val < 0.25) val = 0.25;
+    if (val > maxBet) val = maxBet;
+
+    val = Math.round(val * 4) / 4;
+
+    currentBet = Math.round(val * 100);
+    updateBetUI();
+});
+
+function dealInitialHands() {
+    state.players.forEach(p => {
+        p.bet = currentBet;
+        p.balance -= currentBet;
+        p.activo = true;
+        p.hand = [];
+    });
+    elBetControls.classList.add('hidden');
+    elActionControls.classList.remove('hidden');
+    startRound();
+}
+
+// NAVEGACIÓN Y EVENTOS
+function setupKeyboardNav() {
+    state.focusIndex = 0;
+    state.activeButtons = Array.from(document.querySelectorAll('button')).filter(btn => !btn.classList.contains('hidden') && !btn.disabled && btn.offsetParent !== null);
+    updateFocus();
+}
+function updateFocus() {
+    state.activeButtons.forEach(b => b.classList.remove('focused'));
+    if (state.activeButtons[state.focusIndex]) state.activeButtons[state.focusIndex].classList.add('focused');
 }
 
 document.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' || e.code === 'ArrowUp') {
-        if (dashActive && player.grounded) {
-            player.vy = player.jumpForce;
-            player.grounded = false;
+    if (document.activeElement === elCurrentBet) return;
+
+    if (state.phase === 'BETTING') {
+        if (e.key === 'ArrowUp') { changeBet(100); e.preventDefault(); }
+        if (e.key === 'ArrowDown') { changeBet(-100); e.preventDefault(); }
+        if (e.key === '+') changeBet(25);
+        if (e.key === '-') changeBet(-25);
+    }
+
+    if (e.key === 'ArrowRight') {
+        if(state.activeButtons.length > 0){
+            state.focusIndex = (state.focusIndex + 1) % state.activeButtons.length;
+            updateFocus();
         }
+    } else if (e.key === 'ArrowLeft') {
+        if(state.activeButtons.length > 0){
+            state.focusIndex = (state.focusIndex - 1 + state.activeButtons.length) % state.activeButtons.length;
+            updateFocus();
+        }
+    } else if (e.key === 'Enter') {
+        if (state.activeButtons[state.focusIndex]) state.activeButtons[state.focusIndex].click();
+    }
+
+    if (state.phase === 'PLAYING') {
+        if (e.key.toLowerCase() === 'h') document.getElementById('btn-hit').click();
+        if (e.key.toLowerCase() === 's') document.getElementById('btn-stand').click();
+        if (e.key.toLowerCase() === 'd') document.getElementById('btn-double').click();
     }
 });
 
-function updateDash() {
-    if (!dashActive) return;
-
-    dashScore += 5; // Sube rápido para llegar a 2000
-
-    // Física del jugador
-    player.vy += player.gravity;
-    player.y += player.vy;
-    if (player.y >= 300) {
-        player.y = 300;
-        player.vy = 0;
-        player.grounded = true;
-    }
-
-    // Generar obstáculos (pinchos)
-    if (Math.random() < 0.03 && !dragonActive) {
-        obstacles.push({ x: 800, y: 330, width: 20, height: 20, type: 'spike' });
-    }
-
-    // Activar el Dragón a los 2000 puntos
-    if (dashScore >= 2000 && !dragonActive) {
-        dragonActive = true;
-        dashSpeed = 15; // Se acelera
-    }
-
-    // Actualizar obstáculos y colisiones
-    for (let i = obstacles.length - 1; i >= 0; i--) {
-        obstacles[i].x -= dashSpeed;
-        
-        // Colisión (AABB simplificado)
-        if (
-            player.x < obstacles[i].x + obstacles[i].width &&
-            player.x + player.size > obstacles[i].x &&
-            player.y < obstacles[i].y + obstacles[i].height &&
-            player.y + player.size > obstacles[i].y
-        ) {
-            endDash();
-            return;
-        }
-        
-        if (obstacles[i].x < -50) obstacles.splice(i, 1);
-    }
-
-    // Colisión con el dragón
-    if (dragonActive && 800 - (dashScore - 2000) * 0.5 < player.x + player.size) {
-        endDash();
-        return;
-    }
-
-    // Dibujar
-    dCtx.clearRect(0, 0, 800, 400);
-    
-    // Suelo
-    dCtx.strokeStyle = "#00ffff";
-    dCtx.beginPath();
-    dCtx.moveTo(0, 350);
-    dCtx.lineTo(800, 350);
-    dCtx.stroke();
-
-    // Jugador (Cuadrado)
-    dCtx.fillStyle = "#ffff00";
-    dCtx.fillRect(player.x, player.y, player.size, player.size);
-
-    // Obstáculos (Pinchos)
-    dCtx.fillStyle = "#ff0000";
-    obstacles.forEach(obs => {
-        dCtx.beginPath();
-        dCtx.moveTo(obs.x, obs.y + obs.height);
-        dCtx.lineTo(obs.x + obs.width / 2, obs.y);
-        dCtx.lineTo(obs.x + obs.width, obs.y + obs.height);
-        dCtx.fill();
+document.querySelectorAll('.btn-mode').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        selectedMode = e.target.dataset.mode;
+        elStepMode.classList.add('hidden');
+        elStepConfig.classList.remove('hidden');
+        updateConfigUI();
     });
+});
 
-    // Dibujar Dragón (Si está activo)
-    if (dragonActive) {
-        dCtx.fillStyle = "#ff0000";
-        dCtx.font = "80px monospace";
-        dCtx.fillText("🐉", 800 - (dashScore - 2000) * 0.5, 340); // Usamos emoji para simplificar, o dibujamos una forma
-        // Si no quieres emoji, aquí se dibujaría la cabeza y alas del dragón con paths.
+elInputPlayers.addEventListener('change', updateConfigUI);
+
+function updateConfigUI() {
+    let count = parseInt(elInputPlayers.value);
+    elNamesContainer.innerHTML = '';
+
+    if (selectedMode === 'local') {
+        elConfigTitle.innerText = "Nombres Locales";
+        elLblCount.innerText = "Número de jugadores:";
+        for (let i = 0; i < count; i++) {
+            elNamesContainer.innerHTML += `
+                <div class="input-group">
+                    <label>Nombre Jugador ${i+1}:</label>
+                    <input type="text" class="input-local-name" placeholder="Jugador ${i+1}" maxlength="10">
+                </div>
+            `;
+        }
+    } else {
+        elConfigTitle.innerText = "Contra la Máquina";
+        elLblCount.innerText = "Número de jugadores (Tú + Bots):";
+        elNamesContainer.innerHTML += `
+            <div class="input-group">
+                <label>Tu nombre:</label>
+                <input type="text" id="input-main-name" placeholder="Tu nombre" maxlength="10">
+            </div>
+            <p style="font-size: 12px; color: #888; margin-top:10px;">Los bots serán: Gemini, ChatGPT y Claude.</p>
+        `;
     }
-
-    // Puntos
-    dCtx.fillStyle = "#00ffff";
-    dCtx.font = "20px monospace";
-    dCtx.fillText("PUNTOS: " + dashScore, 650, 40);
-    if (dragonActive) {
-        dCtx.fillStyle = "#ff0000";
-        dCtx.fillText("¡EL DRAGÓN SE ACERCA!", 200, 40);
-    }
-
-    dashLoop = requestAnimationFrame(updateDash);
 }
 
-function endDash() {
-    dashActive = false;
-    clearInterval(autoTypeInterval);
-    gameContainer.classList.add('hidden');
-    hackedScreen.classList.remove('hidden');
-    hackedTitle.textContent = "HACKEADO";
-}
+elBtnStart.addEventListener('click', () => {
+    let count = parseInt(elInputPlayers.value);
+    state.players = [];
 
-// --------------------------------------------------------
-// 4. METAL SLUG
-// --------------------------------------------------------
-document.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' && !hackedScreen.classList.contains('hidden')) {
-        hackedScreen.classList.add('hidden');
-        metalslugContainer.classList.remove('hidden');
-        metalslugFrame.src = "metalslug/index.html";
+    if (selectedMode === 'local') {
+        let inputs = document.querySelectorAll('.input-local-name');
+        inputs.forEach((input, i) => {
+            let name = input.value.trim() || `Jugador ${i+1}`;
+            let bal = name.toLowerCase() === 'tuxtter' ? SALDO_TUXTTER : SALDO_INICIAL;
+            if (name.toLowerCase() === 'tuxtter') alert(`¡Modo TUXTTER activado para ${name}!`);
+            state.players.push({ name: name, balance: bal, hand: [], bet: 100, activo: true });
+        });
+    } else {
+        let mainName = document.getElementById('input-main-name').value.trim() || "Tú";
+        let bal = mainName.toLowerCase() === 'tuxtter' ? SALDO_TUXTTER : SALDO_INICIAL;
+        if (mainName.toLowerCase() === 'tuxtter') alert("¡Modo TUXTTER activado! $1,000,000 iniciales.");
+        
+        state.players.push({ name: mainName, balance: bal, hand: [], bet: 100, activo: true });
+
+        for (let i = 1; i < count; i++) {
+            state.players.push({ name: BOT_NAMES[i-1], balance: SALDO_INICIAL, hand: [], bet: 100, activo: true });
+        }
     }
+    
+    state.phase = 'BETTING';
+    currentBet = 100;
+    updateBalanceUI();
+    renderPlayerUI();
+    elModal.classList.add('hidden');
+    elBetControls.classList.remove('hidden');
+    elActionControls.classList.add('hidden');
+    updateBetUI();
+    setupKeyboardNav();
+});
+
+btnMinus025.addEventListener('click', () => changeBet(-25));
+btnPlus025.addEventListener('click', () => changeBet(25));
+btnMinus1.addEventListener('click', () => changeBet(-100));
+btnPlus1.addEventListener('click', () => changeBet(100));
+btnMax.addEventListener('click', () => {
+    let p = state.players[0];
+    currentBet = Math.floor(p.balance / 25) * 25;
+    if (currentBet < 25) currentBet = 25;
+    updateBetUI();
+});
+document.getElementById('btn-deal').addEventListener('click', dealInitialHands);
+
+document.getElementById('btn-hit').addEventListener('click', playerHit);
+document.getElementById('btn-stand').addEventListener('click', playerStand);
+document.getElementById('btn-double').addEventListener('click', playerDouble);
+
+elBtnNextRound.addEventListener('click', () => {
+    state.phase = 'BETTING';
+    elResultMessage.className = 'hidden';
+    elBtnNextRound.classList.add('hidden');
+    elBetControls.classList.remove('hidden');
+    elActionControls.classList.add('hidden');
+    
+    state.dealer.hand = [];
+    elDealerHand.innerHTML = '';
+    elDealerScore.innerText = '?';
+    state.players.forEach(p => { p.hand = []; p.bet = 0; });
+    renderPlayerUI();
+    
+    if (state.players[0].balance < 25) {
+        alert("Te quedaste sin saldo. Reiniciando a $5.00.");
+        state.players[0].balance = state.players[0].name.toLowerCase() === 'tuxtter' ? SALDO_TUXTTER : SALDO_INICIAL;
+    }
+    
+    updateBalanceUI();
+    updateBetUI();
+    setupKeyboardNav();
 });

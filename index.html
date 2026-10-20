@@ -3,51 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mega Hacker Typer: Geometry Dash</title>
+    <title>Blackjack Deluxe Web</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Fondo Matrix -->
-    <canvas id="matrixCanvas"></canvas>
+    <div class="app-container">
+        <main class="game-board">
+            <header class="top-bar">
+                <h1>B L A C K J A C K</h1>
+            </header>
 
-    <!-- Terminal Principal -->
-    <div id="terminal-container">
-        <div id="terminal-output"></div>
+            <section class="hand-area dealer-area">
+                <h2>CRUPIER <span id="dealer-score" class="score-badge">?</span></h2>
+                <div class="hand" id="dealer-hand"></div>
+            </section>
+
+            <div class="table-divider"></div>
+
+            <section class="players-container" id="players-container"></section>
+        </main>
+
+        <aside class="sidebar">
+            <div class="stats-box">
+                <h3>ESTADÍSTICAS</h3>
+                <p>Ganadas: <span id="stat-wins">0</span></p>
+                <p>Perdidas: <span id="stat-losses">0</span></p>
+                <p>Empates: <span id="stat-pushes">0</span></p>
+                <p>Blackjacks: <span id="stat-blackjacks" style="color: #ffd700;">0</span></p>
+            </div>
+
+            <div class="seats-box">
+                <h3>ASIENTOS</h3>
+                <div class="seat dealer-seat-box">● DEALER</div>
+                <div id="player-seats-list" class="player-seats-list"></div>
+            </div>
+
+            <div class="balance-box">
+                <h3>SALDO ACTUAL</h3>
+                <div class="money" id="balance-display">$5.00</div>
+            </div>
+        </aside>
     </div>
 
-    <!-- Ventanas Flotantes del Hackeo -->
-    <div id="mini-window-1" class="mini-window hidden">
-        <div class="window-header">⚠️ VISUALIZADOR_ASCII.exe</div>
-        <div class="window-content rainbow-text" id="ascii-art-display"></div>
-    </div>
-
-    <div id="mini-window-2" class="mini-window hidden">
-        <div class="window-header">⚡ HACK_TOOLS.sh</div>
-        <div class="window-content">
-            <p id="hack-text">Hackeando todos los sistemas...</p>
-            <div class="progress-bar"><div class="progress-fill" id="hack-progress"></div></div>
+    <!-- CONTROLES -->
+    <div class="controls">
+        <div id="bet-controls" class="control-group">
+            <div class="bet-display">
+                Apuesta: $<input type="number" id="current-bet" value="1.00" step="0.25" min="0.25">
+            </div>
+            <button id="btn-bet-minus1">- $1.00</button>
+            <button id="btn-bet-minus">- $0.25</button>
+            <button id="btn-bet-plus">+ $0.25</button>
+            <button id="btn-bet-plus1">+ $1.00</button>
+            <button id="btn-bet-max">Max</button>
+            <button id="btn-deal" class="primary">Repartir</button>
         </div>
+
+        <div id="action-controls" class="control-group hidden">
+            <button id="btn-hit">PEDIR [H]</button>
+            <button id="btn-stand">PLANTAR [S]</button>
+            <button id="btn-double">DOBLAR [D]</button>
+        </div>
+
+        <div id="result-message" class="hidden"></div>
+        <button id="btn-next-round" class="primary hidden">Siguiente Ronda</button>
     </div>
 
-    <div id="mini-window-3" class="mini-window hidden">
-        <div class="window-header">🧮 MATH_CORE.c</div>
-        <div class="window-content" id="math-display"></div>
-    </div>
-
-    <!-- Juego Geometry Dash -->
-    <div id="game-container" class="hidden">
-        <canvas id="dashCanvas" width="800" height="400"></canvas>
-    </div>
-
-    <!-- Pantalla de Hackeado -->
-    <div id="hacked-screen" class="hidden">
-        <h1>HACKEADO</h1>
-        <p class="blink">Presiona ESPACIO para jugar Metal Slug</p>
-    </div>
-
-    <!-- Contenedor del Juego Metal Slug (iframe) -->
-    <div id="metalslug-container" class="hidden">
-        <iframe id="metalslug-frame" src="" frameborder="0" allowfullscreen></iframe>
+    <!-- MODAL EN 2 PASOS -->
+    <div id="name-modal" class="modal">
+        <div class="modal-content">
+            <div id="step-mode">
+                <h2>Modo de Juego</h2>
+                <p>Elige cómo quieres jugar</p>
+                <div class="mode-btns">
+                    <button class="btn-mode primary" data-mode="local">Local (Pasar dispositivo)</button>
+                    <button class="btn-mode primary" data-mode="bots">Contra Bots</button>
+                </div>
+            </div>
+            
+            <div id="step-config" class="hidden">
+                <h2 id="config-title">Configuración</h2>
+                <div class="input-group">
+                    <label id="lbl-count">Número de jugadores:</label>
+                    <select id="input-players">
+                        <option value="1">1</option>
+                        <option value="2" selected>2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                </div>
+                <div id="names-container"></div>
+                <button id="btn-start" class="primary" style="margin-top: 15px; width: 100%;">Comenzar Juego</button>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>
