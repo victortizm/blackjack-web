@@ -10,7 +10,6 @@ let state = {
     currentPlayerIndex: 0,
     deck: [],
     phase: 'INIT',
-    stats: { wins: 0, losses: 0, pushes: 0, blackjacks: 0 },
     focusIndex: 0,
     activeButtons: []
 };
@@ -31,6 +30,7 @@ const elPlayersContainer = document.getElementById('players-container');
 const elDealerHand = document.getElementById('dealer-hand');
 const elDealerScore = document.getElementById('dealer-score');
 const elPlayerSeatsList = document.getElementById('player-seats-list');
+const elStatsGrid = document.getElementById('stats-grid');
 const elBalanceDisplay = document.getElementById('balance-display');
 const elBetControls = document.getElementById('bet-controls');
 const elActionControls = document.getElementById('action-controls');
@@ -90,14 +90,17 @@ function createCardElement(card, isHidden = false) {
 function renderPlayerUI() {
     elPlayersContainer.innerHTML = '';
     elPlayerSeatsList.innerHTML = '';
+    elStatsGrid.innerHTML = '';
 
     state.players.forEach((p, i) => {
+        // 1. Mesa (Cartas y Fichas)
         let box = document.createElement('div');
         box.className = `player-box ${i === state.currentPlayerIndex && state.phase === 'PLAYING' ? 'active-turn' : ''}`;
         
         let chipHTML = '';
         if (p.bet > 0) {
-            chipHTML = `<div class="chip-container"><div class="chip" style="animation: dropChip 0.3s ease-out;">$${p.bet/100}</div></div>`;
+            let chipText = p.bet >= 1000000 ? (p.bet/1000000)+'M' : (p.bet >= 10000 ? (p.bet/100)+'k' : '$'+(p.bet/100));
+            chipHTML = `<div class="chip-container"><div class="chip" style="animation: dropChip 0.3s ease-out;">${chipText}</div></div>`;
         }
 
         box.innerHTML = `
@@ -110,12 +113,23 @@ function renderPlayerUI() {
         let handContainer = box.querySelector('.hand');
         p.hand.forEach(c => handContainer.appendChild(createCardElement(c)));
 
+        // 2. Asientos Laterales
         let seat = document.createElement('div');
         seat.className = `seat ${i === state.currentPlayerIndex && state.phase === 'PLAYING' ? 'active' : ''}`;
         let isTuxtter = p.name.toLowerCase() === 'tuxtter';
         let saldoStr = isTuxtter ? '$1.0M' : `$${Math.floor(p.balance/100)}.${(p.balance%100).toString().padStart(2,'0')}`;
         seat.innerText = `● ${p.name} (${saldoStr})`;
         elPlayerSeatsList.appendChild(seat);
+
+        // 3. Tabla de Estadísticas
+        let statRow = document.createElement('div');
+        statRow.className = 'stat-row';
+        let shortName = p.name.substring(0, 6);
+        statRow.innerHTML = `
+            <div class="stat-name" title="${p.name}">${shortName}</div>
+            <div class="stat-values">${p.stats.wins} / ${p.stats.losses} / ${p.stats.pushes}</div>
+        `;
+        elStatsGrid.appendChild(statRow);
     });
 }
 
@@ -173,7 +187,6 @@ function startRound() {
     }, delay + 200);
 }
 
-// --- LÓGICA DE TURNOS ---
 function checkBlackjackAndTurns() {
     let foundActive = false;
     for(let i = state.currentPlayerIndex; i < state.players.length; i++) {
@@ -198,30 +211,21 @@ function checkBlackjackAndTurns() {
 
         let currentPlayer = state.players[state.currentPlayerIndex];
         
-        // SI ES UN BOT: Ocultar botones y pensar automáticamente
         if (currentPlayer.isBot) {
             elActionControls.classList.add('hidden');
-            setTimeout(botTurn, 1000); // Espera 1 segundo antes de actuar
-        } 
-        // SI ES UN HUMANO: Mostrar botones y esperar input
-        else {
+            setTimeout(botTurn, 1000);
+        } else {
             elActionControls.classList.remove('hidden');
             setupKeyboardNav();
         }
     }
 }
 
-// --- INTELIGENCIA DE LOS BOTS ---
 function botTurn() {
     let p = state.players[state.currentPlayerIndex];
     let score = calculateScore(p.hand);
-
-    // Regla simple: Pedir carta si tiene menos de 17
-    if (score < 17) {
-        playerHit();
-    } else {
-        playerStand();
-    }
+    if (score < 17) playerHit();
+    else playerStand();
 }
 
 function playerHit() {
@@ -234,13 +238,10 @@ function playerHit() {
     
     setTimeout(() => {
         renderPlayerUI();
-        let score = calculateScore(p.hand);
-        
-        if (score >= 21) {
+        if (calculateScore(p.hand) >= 21) {
             p.activo = false;
             nextPlayer();
         } else if (p.isBot) {
-            // Si es un bot y sigue teniendo menos de 21, vuelve a decidir
             setTimeout(botTurn, 1000);
         }
     }, 400);
@@ -295,20 +296,17 @@ function dealerTurn() {
     setTimeout(playDealer, 600);
 }
 
-// RESOLUCIÓN Y MENSAJES
+// RESOLUCIÓN
 function resolveRound() {
     state.phase = 'RESOLVE';
     let dScore = calculateScore(state.dealer.hand);
     elDealerScore.innerText = dScore;
     
-    let roundWins = 0;
-    let roundLosses = 0;
-    let roundPushes = 0;
-    let totalActive = 0;
+    let roundWins = 0, roundLosses = 0, totalActive = 0;
     let singlePlayerResult = "";
 
     state.players.forEach((p) => {
-        if(!p.activo && p.hand.length === 0) return;
+        if(p.hand.length === 0) return;
         totalActive++;
         
         let pScore = calculateScore(p.hand);
@@ -317,74 +315,49 @@ function resolveRound() {
         
         let payout = 0;
         let betAmount = p.bet;
-        p.bet = 0;
 
         if (pScore > 21) {
-            state.stats.losses++; roundLosses++;
+            p.stats.losses++; roundLosses++;
             if (totalActive === 1) singlePlayerResult = "PIERDE";
         } else if (isPlayerBJ && !isDealerBJ) {
             payout = Math.floor(betAmount * 2.5);
-            state.stats.blackjacks++; state.stats.wins++; roundWins++;
+            p.stats.wins++; roundWins++;
             if (totalActive === 1) singlePlayerResult = "¡BLACKJACK!";
         } else if (isDealerBJ && !isPlayerBJ) {
-            state.stats.losses++; roundLosses++;
+            p.stats.losses++; roundLosses++;
             if (totalActive === 1) singlePlayerResult = "PIERDE";
         } else if (dScore > 21 || pScore > dScore) {
             payout = betAmount * 2;
-            state.stats.wins++; roundWins++;
+            p.stats.wins++; roundWins++;
             if (totalActive === 1) singlePlayerResult = "GANA";
         } else if (pScore === dScore) {
             payout = betAmount;
-            state.stats.pushes++; roundPushes++;
+            p.stats.pushes++;
             if (totalActive === 1) singlePlayerResult = "EMPATA";
         } else {
-            state.stats.losses++; roundLosses++;
+            p.stats.losses++; roundLosses++;
             if (totalActive === 1) singlePlayerResult = "PIERDE";
         }
         p.balance += payout;
     });
 
     renderPlayerUI();
-    updateStatsUI();
     updateBalanceUI();
 
-    // MENSAJE INTELIGENTE
     elResultMessage.className = '';
-    
     if (totalActive === 1) {
         elResultMessage.innerText = `${state.players[0].name} ${singlePlayerResult}`;
-        if (singlePlayerResult.includes("GANA") || singlePlayerResult.includes("BLACKJACK")) {
-            elResultMessage.classList.add('anim-win');
-        } else if (singlePlayerResult === "PIERDE") {
-            elResultMessage.classList.add('anim-lose');
-        } else {
-            elResultMessage.classList.add('anim-push');
-        }
+        if (singlePlayerResult.includes("GANA") || singlePlayerResult.includes("BLACKJACK")) elResultMessage.classList.add('anim-win');
+        else if (singlePlayerResult === "PIERDE") elResultMessage.classList.add('anim-lose');
+        else elResultMessage.classList.add('anim-push');
     } else {
-        if (roundWins === totalActive) {
-            elResultMessage.innerText = "¡TODOS GANARON!";
-            elResultMessage.classList.add('anim-win');
-        } else if (roundLosses === totalActive) {
-            elResultMessage.innerText = "LA CASA GANA";
-            elResultMessage.classList.add('anim-lose');
-        } else if (roundPushes === totalActive) {
-            elResultMessage.innerText = "EMPATE GENERAL";
-            elResultMessage.classList.add('anim-push');
-        } else {
-            elResultMessage.innerText = "RESULTADOS MIXTOS";
-            elResultMessage.classList.add('anim-push');
-        }
+        if (roundWins === totalActive) { elResultMessage.innerText = "¡TODOS GANARON!"; elResultMessage.classList.add('anim-win'); }
+        else if (roundLosses === totalActive) { elResultMessage.innerText = "LA CASA GANA"; elResultMessage.classList.add('anim-lose'); }
+        else { elResultMessage.innerText = "RESULTADOS MIXTOS"; elResultMessage.classList.add('anim-push'); }
     }
 
     elBtnNextRound.classList.remove('hidden');
     setupKeyboardNav();
-}
-
-function updateStatsUI() {
-    document.getElementById('stat-wins').innerText = state.stats.wins;
-    document.getElementById('stat-losses').innerText = state.stats.losses;
-    document.getElementById('stat-pushes').innerText = state.stats.pushes;
-    document.getElementById('stat-blackjacks').innerText = state.stats.blackjacks;
 }
 
 // CONTROL DE APUESTAS
@@ -405,34 +378,35 @@ function changeBet(amount) {
     let p = state.players[0];
     let maxBet = Math.floor(p.balance / 25) * 25;
     let newBet = currentBet + amount;
-    
     if (newBet < 25) newBet = 25;
     if (newBet > maxBet) newBet = maxBet;
-    
     currentBet = newBet;
     updateBetUI();
 }
 
-// INPUT MANUAL
 elCurrentBet.addEventListener('change', (e) => {
-    let val = parseFloat(e.target.value);
+    let val = parseFloat(e.target.value.replace(/,/g, ''));
     let p = state.players[0];
     let maxBet = Math.floor(p.balance / 25) / 100;
-
     if (isNaN(val)) val = 1.00;
     if (val < 0.25) val = 0.25;
     if (val > maxBet) val = maxBet;
-
     val = Math.round(val * 4) / 4;
-
     currentBet = Math.round(val * 100);
     updateBetUI();
 });
 
+// ASIGNACIÓN DE APUESTAS Y REPARTO INICIAL
 function dealInitialHands() {
     state.players.forEach(p => {
-        p.bet = currentBet;
-        p.balance -= currentBet;
+        // El jugador 1 apuesta lo que eligió en la barra. 
+        // Los demás (bots o locales) apuestan el mínimo ($1) o su saldo máximo si es menor.
+        let intendedBet = (p === state.players[0]) ? currentBet : 100;
+        
+        if (p.balance < intendedBet) intendedBet = p.balance; // No apostar más de lo que tienen
+
+        p.bet = intendedBet;
+        p.balance -= intendedBet;
         p.activo = true;
         p.hand = [];
     });
@@ -454,28 +428,19 @@ function updateFocus() {
 
 document.addEventListener('keydown', (e) => {
     if (document.activeElement === elCurrentBet) return;
-
     if (state.phase === 'BETTING') {
         if (e.key === 'ArrowUp') { changeBet(100); e.preventDefault(); }
         if (e.key === 'ArrowDown') { changeBet(-100); e.preventDefault(); }
         if (e.key === '+') changeBet(25);
         if (e.key === '-') changeBet(-25);
     }
-
     if (e.key === 'ArrowRight') {
-        if(state.activeButtons.length > 0){
-            state.focusIndex = (state.focusIndex + 1) % state.activeButtons.length;
-            updateFocus();
-        }
+        if(state.activeButtons.length > 0){ state.focusIndex = (state.focusIndex + 1) % state.activeButtons.length; updateFocus(); }
     } else if (e.key === 'ArrowLeft') {
-        if(state.activeButtons.length > 0){
-            state.focusIndex = (state.focusIndex - 1 + state.activeButtons.length) % state.activeButtons.length;
-            updateFocus();
-        }
+        if(state.activeButtons.length > 0){ state.focusIndex = (state.focusIndex - 1 + state.activeButtons.length) % state.activeButtons.length; updateFocus(); }
     } else if (e.key === 'Enter') {
         if (state.activeButtons[state.focusIndex]) state.activeButtons[state.focusIndex].click();
     }
-
     if (state.phase === 'PLAYING') {
         if (e.key.toLowerCase() === 'h') document.getElementById('btn-hit').click();
         if (e.key.toLowerCase() === 's') document.getElementById('btn-stand').click();
@@ -532,20 +497,17 @@ elBtnStart.addEventListener('click', () => {
             let name = input.value.trim() || `Jugador ${i+1}`;
             let bal = name.toLowerCase() === 'tuxtter' ? SALDO_TUXTTER : SALDO_INICIAL;
             if (name.toLowerCase() === 'tuxtter') alert(`¡Modo TUXTTER activado para ${name}!`);
-            // En modo local nadie es bot
-            state.players.push({ name: name, balance: bal, hand: [], bet: 100, activo: true, isBot: false });
+            state.players.push({ name: name, balance: bal, hand: [], bet: 0, activo: true, isBot: false, stats: {wins:0, losses:0, pushes:0} });
         });
     } else {
         let mainName = document.getElementById('input-main-name').value.trim() || "Tú";
         let bal = mainName.toLowerCase() === 'tuxtter' ? SALDO_TUXTTER : SALDO_INICIAL;
         if (mainName.toLowerCase() === 'tuxtter') alert("¡Modo TUXTTER activado! $1,000,000 iniciales.");
         
-        // El jugador principal no es bot
-        state.players.push({ name: mainName, balance: bal, hand: [], bet: 100, activo: true, isBot: false });
+        state.players.push({ name: mainName, balance: bal, hand: [], bet: 0, activo: true, isBot: false, stats: {wins:0, losses:0, pushes:0} });
 
-        // Los siguientes jugadores SÍ son bots
         for (let i = 1; i < count; i++) {
-            state.players.push({ name: BOT_NAMES[i-1], balance: SALDO_INICIAL, hand: [], bet: 100, activo: true, isBot: true });
+            state.players.push({ name: BOT_NAMES[i-1], balance: SALDO_INICIAL, hand: [], bet: 0, activo: true, isBot: true, stats: {wins:0, losses:0, pushes:0} });
         }
     }
     
@@ -571,7 +533,6 @@ btnMax.addEventListener('click', () => {
     updateBetUI();
 });
 document.getElementById('btn-deal').addEventListener('click', dealInitialHands);
-
 document.getElementById('btn-hit').addEventListener('click', playerHit);
 document.getElementById('btn-stand').addEventListener('click', playerStand);
 document.getElementById('btn-double').addEventListener('click', playerDouble);
